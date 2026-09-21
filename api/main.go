@@ -49,8 +49,14 @@ func main() {
 		log.Fatalf("Failed to initialize storage client: %v", err)
 	}
 
-	// Initialize AI client
-	aiClient := ai.NewClient(cfg.OpenAIAPIKey)
+	// Initialize AI client with Gemini configuration (multi-key auto-swap & model fallback)
+	aiClient := ai.NewClientWithConfig(ai.Config{
+		APIKeys:   cfg.GeminiAPIKeys,
+		Model:     cfg.GeminiModel,
+		Models:    cfg.GeminiModels,
+		BaseURL:   cfg.GeminiBaseURL,
+		UseMockAI: cfg.UseMockAI,
+	})
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
