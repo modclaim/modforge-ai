@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"strings"
+
 	"modforge.ai/ai"
 	"modforge.ai/api/config"
 	"modforge.ai/api/database"
@@ -56,4 +58,14 @@ func Setup(app *fiber.App, db *database.DB, cfg *config.Config, storageClient *s
 	billing := protected.Group("/billing")
 	billing.Get("/credits", h.GetCredits)
 	billing.Post("/credits/purchase", h.PurchaseCredits)
+
+	// Frontend static assets & SPA fallback
+	app.Static("/", "./frontend/dist")
+	app.Get("/*", func(c *fiber.Ctx) error {
+		path := c.Path()
+		if !strings.HasPrefix(path, "/api") && !strings.HasPrefix(path, "/uploads") {
+			return c.SendFile("./frontend/dist/index.html")
+		}
+		return c.Next()
+	})
 }
