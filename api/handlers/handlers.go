@@ -430,8 +430,12 @@ func (h *Handlers) processModInBackground(ctx context.Context, job *models.Job, 
 		return
 	}
 
-	// Check if we should use mock AI processing (for testing when OpenAI quota exceeded)
-	useMockAI := true // Set to false when you have OpenAI quota
+	// Determine whether to use mock AI or real Gemini AI
+	useMockAI := h.cfg.UseMockAI
+	if !useMockAI && len(h.cfg.GeminiAPIKeys) == 0 {
+		// Only fall back to mock if no Gemini API keys are configured
+		useMockAI = true
+	}
 
 	var processedResponse *ai.ProcessModResponse
 
