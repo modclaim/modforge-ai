@@ -50,7 +50,58 @@ func Initialize(databaseURL string) (*DB, error) {
 
 // RunMigrations runs database migrations
 func RunMigrations(databaseURL string) error {
-	// For production with existing database, apply manual schema updates
+	// Handle SQLite database safely
+	if !strings.HasPrefix(databaseURL, "postgresql://") && !strings.HasPrefix(databaseURL, "postgres://") {
+		dbPath := strings.TrimPrefix(databaseURL, "sqlite://")
+		db, err := sql.Open("sqlite3", dbPath)
+		if err != nil {
+			return fmt.Errorf("failed to open sqlite database: %w", err)
+		}
+		defer db.Close()
+
+		// Check if users table already exists in SQLite
+		var tableCount int
+		_ = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'").Scan(&tableCount)
+		if tableCount > 0 {
+			log.Println("Existing SQLite database detected - verifying schema...")
+			var hasPasswordHash bool
+			rows, err := db.Query("PRAGMA table_info(users)")
+			if err == nil {
+				for rows.Next() {
+					var cid int
+					var name, ctype string
+					var notnull, pk int
+					var dfltValue interface{}
+					if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err == nil {
+						if name == "password_hash" {
+							hasPasswordHash = true
+						}
+					}
+				}
+				rows.Close()
+			}
+
+			if !hasPasswordHash {
+				log.Println("Adding password_hash column to SQLite users table...")
+				_, _ = db.Exec("ALTER TABLE users ADD COLUMN password_hash TEXT;")
+			}
+
+			_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS user_sessions (
+				id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				token TEXT UNIQUE NOT NULL,
+				expires_at TIMESTAMP NOT NULL,
+				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+			);
+			CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
+			CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+			`)
+
+			log.Println("SQLite database schema verified successfully")
+			return nil
+		}
+	}
 	if strings.HasPrefix(databaseURL, "postgresql://") || strings.HasPrefix(databaseURL, "postgres://") {
 		log.Println("Production PostgreSQL detected - applying manual schema updates...")
 
