@@ -341,8 +341,13 @@ func (db *DB) CreateUser(user *models.User) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`
 
+	firebaseUID := user.ID
+	if user.FirebaseUID != nil && *user.FirebaseUID != "" {
+		firebaseUID = *user.FirebaseUID
+	}
+
 	_, err := db.Exec(query,
-		user.ID, user.Email, user.Password, user.FirebaseUID, user.DisplayName,
+		user.ID, user.Email, user.Password, firebaseUID, user.DisplayName,
 		user.Credits, user.Plan, user.MonthlyJobsUsed, user.MonthlyJobsResetDate,
 		user.CreatedAt, user.UpdatedAt,
 	)
