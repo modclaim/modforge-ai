@@ -492,6 +492,7 @@ func (db *DB) CreateSession(session *models.UserSession) error {
 	)
 
 	if err != nil {
+		log.Printf("Database error creating session: %v", err)
 		return fmt.Errorf("failed to create session: %w", err)
 	}
 
