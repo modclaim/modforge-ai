@@ -86,17 +86,38 @@ func RunMigrations(databaseURL string) error {
 				_, _ = db.Exec("ALTER TABLE users ADD COLUMN password_hash TEXT;")
 			}
 
-			_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS user_sessions (
-				id TEXT PRIMARY KEY,
-				user_id TEXT NOT NULL,
-				token TEXT UNIQUE NOT NULL,
-				expires_at TIMESTAMP NOT NULL,
-				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-				FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-			);
-			CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
-			CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
-			`)
+			// Ensure user_sessions has token column (recreate if old firebase_token schema)
+			var hasToken bool
+			sRows, sErr := db.Query("PRAGMA table_info(user_sessions)")
+			if sErr == nil {
+				for sRows.Next() {
+					var cid int
+					var name, ctype string
+					var notnull, pk int
+					var dfltValue interface{}
+					if err := sRows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err == nil {
+						if name == "token" {
+							hasToken = true
+						}
+					}
+				}
+				sRows.Close()
+			}
+			if !hasToken {
+				log.Println("Recreating user_sessions table with 'token' column...")
+				_, _ = db.Exec("DROP TABLE IF EXISTS user_sessions;")
+				_, _ = db.Exec(`CREATE TABLE user_sessions (
+					id TEXT PRIMARY KEY,
+					user_id TEXT NOT NULL,
+					token TEXT UNIQUE NOT NULL,
+					expires_at TIMESTAMP NOT NULL,
+					created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+					FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+				);
+				CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token);
+				CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+				`)
+			}
 
 			log.Println("SQLite database schema verified successfully")
 			return nil
